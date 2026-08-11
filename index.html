@@ -133,11 +133,11 @@ td.bd{
   padding-bottom:4mm !important;
   font-size:14pt; line-height:1.45;
 }
-td.ftspacer{ height:var(--foot-h); }
-
-/* ท้ายกระดาษ */
+/* ท้ายกระดาษอยู่ใน <tfoot> ของตาราง — เบราว์เซอร์ทุกตัวพิมพ์ซ้ำให้ทุกหน้าเอง
+   (เดิมใช้ position:fixed ซึ่ง Safari บน iPhone ไม่รองรับตอนพิมพ์
+    ท้ายกระดาษเลยไปโผล่กลางหน้าแทนที่จะอยู่ล่างสุด) */
+td.ftcell{ height:var(--foot-h); vertical-align:bottom !important; }
 .docfoot{
-  position:absolute; bottom:0; left:0; width:var(--page-w);
   padding:0 12mm 4mm; font-size:14pt; line-height:1.3;
 }
 .docfoot .fline{ border-top:1.4pt solid #000; margin-bottom:1.5mm; }
@@ -319,7 +319,8 @@ body.mobile .mbanner{ display:block; }
   .mbanner{ display:none !important; }
 
   /* ท้ายกระดาษตรึงล่างสุด → พิมพ์ซ้ำทุกหน้า */
-  .docfoot{ position:fixed; bottom:0; left:0; width:100%; margin:0; background:#fff; }
+  /* ไม่ต้องตรึงท้ายกระดาษแล้ว — <tfoot> พิมพ์ซ้ำทุกหน้าให้เอง ใช้ได้ทั้ง Chrome และ Safari */
+  table.sheet > tfoot{ display:table-footer-group; }
 
   /* ช่องกรอกไม่มีเส้นใดๆ ตอนพิมพ์ — เหลือเฉพาะข้อความที่กรอก
      ใช้ transparent ไม่ใช่ 0 เพื่อให้ความสูงเท่ากับตอนแสดงบนจอ */
@@ -504,14 +505,14 @@ body.mobile .mbanner{ display:block; }
 
       </td></tr>
     </tbody>
-    <tfoot><tr><td class="ftspacer"></td></tr></tfoot>
+    <tfoot><tr><td class="ftcell">
+      <div class="docfoot" id="docfoot">
+        <div class="fline"></div>
+        <div class="fcac">บริษัท ทีทีที คอร์ปอเรชั่น จำกัด ได้ผ่านการรับรองว่ามีนโยบายต่อต้านการให้สินบนทุกรูปแบบตามโครงการ CAC SME Certification</div>
+        <div class="fdoc" id="footDoc"></div>
+      </div>
+    </td></tr></tfoot>
   </table>
-
-  <div class="docfoot" id="docfoot">
-    <div class="fline"></div>
-    <div class="fcac">บริษัท ทีทีที คอร์ปอเรชั่น จำกัด ได้ผ่านการรับรองว่ามีนโยบายต่อต้านการให้สินบนทุกรูปแบบตามโครงการ CAC SME Certification</div>
-    <div class="fdoc" id="footDoc"></div>
-  </div>
 </div>
 </div>
 
@@ -1019,7 +1020,8 @@ function fitSigText(){
     const el = $(id); if(!el) return;
     let size = 14;
     el.style.fontSize = size + 'pt';
-    while(el.scrollWidth > el.clientWidth + 1 && size > 9){ size -= 0.5; el.style.fontSize = size + 'pt'; }
+    // ลดได้ถึง 7pt เพราะบางเครื่อง (มือถือ) ไม่มีฟอนต์ที่กำหนดไว้ ต้องใช้ฟอนต์แทนซึ่งกว้างกว่า
+    while(el.scrollWidth > el.clientWidth + 1 && size > 7){ size -= 0.5; el.style.fontSize = size + 'pt'; }
   });
 }
 
@@ -1056,7 +1058,13 @@ function hideEmptyOptional(on){
    1) วัดว่าเนื้อหายาวกี่หน้า A4
    2) ดันบล็อก "ด้วยความนับถือ + ลายเซ็น" ลงไปอยู่ล่างสุดของหน้าสุดท้าย
    3) วาดเส้นบอกขอบล่างของแต่ละหน้าบนจอ + อัปเดตป้ายจำนวนหน้าบนแถบเครื่องมือ  */
+/* ความสูงท้ายกระดาษที่วัดได้ ป้อนกลับเข้าไปเปลี่ยนพื้นที่เนื้อหาต่อหน้า
+   วัดรอบเดียวจึงยังไม่นิ่ง ต้องวัดซ้ำอีกรอบให้ค่าลงตัวก่อนใช้จริง */
 function measurePages(){
+  layoutPass();
+  return layoutPass();
+}
+function layoutPass(){
   const mm = 96/25.4, sp = $('tailSpacer'), stage = $('stage');
 
   // จองพื้นที่ท้ายกระดาษตามความสูงจริงของท้ายกระดาษ + เว้นห่างจากเนื้อหา 2 มม.
@@ -1523,6 +1531,11 @@ window.addEventListener('DOMContentLoaded', ()=>{
   // สั่งพิมพ์ทางไหนก็ได้ (ปุ่มในหน้า / Ctrl+P / iPhone Share→Print) ก็จัดหน้าให้ก่อนเสมอ
   window.addEventListener('beforeprint', prepareForPrint);
   window.addEventListener('afterprint', ()=> hideEmptyOptional(false));
+  // Safari บน iPhone ไม่ยิง beforeprint — ต้องดักผ่าน media query แทน
+  const mqPrint = matchMedia('print');
+  const onPrintMedia = m => { if(m.matches) prepareForPrint(); else hideEmptyOptional(false); };
+  if(mqPrint.addEventListener) mqPrint.addEventListener('change', onPrintMedia);
+  else if(mqPrint.addListener) mqPrint.addListener(onPrintMedia);
   SIG_FIELDS.forEach(id => $(id).addEventListener('input', fitSigText));
 
   // พิมพ์ชื่อในช่องลายเซ็น → เลือกจากรายการ แล้วเติมตำแหน่งให้เอง
