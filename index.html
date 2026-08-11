@@ -23,6 +23,10 @@
   --line: #94a3b8;
 }
 *{ box-sizing: border-box; }
+/* ปิดการขยายฟอนต์อัตโนมัติของเบราว์เซอร์มือถือ (font boosting)
+   ถ้าไม่ปิด Safari/Chrome บนมือถือจะขยายตัวอักษรในกล่องที่กว้างกว่าจอ (กระดาษ A4 = 794px บนจอ 375px)
+   ทำให้ข้อความไหลคนละแบบกับตอนพิมพ์ออกมา = อาการ "ข้อความเด้งไปมา" */
+html{ -webkit-text-size-adjust:100%; -moz-text-size-adjust:100%; text-size-adjust:100%; }
 html,body{ margin:0; padding:0; }
 body{
   background:#e2e8f0;
@@ -306,6 +310,7 @@ body.mobile .mbanner{ display:block; }
 /* ---------- โหมดพิมพ์ ---------- */
 @page{ size:A4 portrait; margin:0; }
 @media print{
+  html{ -webkit-text-size-adjust:none; text-size-adjust:none; }
   body{ background:#fff; }
   .no-print{ display:none !important; }
   .stagewrap{ width:auto !important; height:auto !important; margin:0; overflow:visible; }
@@ -1018,12 +1023,16 @@ function fitSigText(){
   });
 }
 
-function doPrint(){
-  if(!$('f_subject').value.trim() && !confirm('ยังไม่ได้กรอก "เรื่อง" — พิมพ์ต่อเลยหรือไม่?')) return;
-  if(!lockDocNo()) return;
+/* จัดหน้าให้พร้อมพิมพ์ — ต้องเรียกทุกครั้งก่อนพิมพ์ ไม่ว่าสั่งพิมพ์มาทางไหน */
+function prepareForPrint(){
   hideEmptyOptional(true);
   fitSigText();
   measurePages();
+}
+function doPrint(){
+  if(!$('f_subject').value.trim() && !confirm('ยังไม่ได้กรอก "เรื่อง" — พิมพ์ต่อเลยหรือไม่?')) return;
+  if(!lockDocNo()) return;
+  prepareForPrint();
   const old = document.title;
   document.title = pdfName();
   setTimeout(()=>{
@@ -1501,8 +1510,19 @@ window.addEventListener('DOMContentLoaded', ()=>{
   // แก้อะไรก็ตามในเอกสาร → คำนวณจำนวนหน้าและตำแหน่งลายเซ็นใหม่ทันที
   const relayout = ()=>{ clearTimeout(window.__mt); window.__mt = setTimeout(()=>{ measurePages(); fitStage(); }, 250); };
   $('stage').addEventListener('input', relayout);
-  window.addEventListener('resize', relayout);
-  window.addEventListener('orientationchange', relayout);
+  // บนมือถือ แป้นพิมพ์เด้งขึ้น-ลงทำให้เกิด resize (สูงเปลี่ยน กว้างเท่าเดิม)
+  // ถ้าจัดหน้าใหม่ทุกครั้ง ข้อความจะขยับให้เห็นระหว่างพิมพ์ จึงจัดใหม่เฉพาะตอนความกว้างเปลี่ยนจริง
+  let lastVW = document.documentElement.clientWidth;
+  window.addEventListener('resize', ()=>{
+    const vw = document.documentElement.clientWidth;
+    if(vw === lastVW) return;
+    lastVW = vw; relayout();
+  });
+  window.addEventListener('orientationchange', ()=>{ lastVW = -1; relayout(); });
+
+  // สั่งพิมพ์ทางไหนก็ได้ (ปุ่มในหน้า / Ctrl+P / iPhone Share→Print) ก็จัดหน้าให้ก่อนเสมอ
+  window.addEventListener('beforeprint', prepareForPrint);
+  window.addEventListener('afterprint', ()=> hideEmptyOptional(false));
   SIG_FIELDS.forEach(id => $(id).addEventListener('input', fitSigText));
 
   // พิมพ์ชื่อในช่องลายเซ็น → เลือกจากรายการ แล้วเติมตำแหน่งให้เอง
