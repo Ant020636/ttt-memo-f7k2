@@ -143,6 +143,16 @@ td.ftspacer{ height:var(--foot-h); }
 /* ---------- องค์ประกอบในเอกสาร ---------- */
 .memo-title{ text-align:center; font-size:26pt; font-weight:700; margin:0 0 2mm; letter-spacing:1px; line-height:1.15; }
 
+/* ช่องวันที่: วาง input[type=date] แบบโปร่งใสทับข้อความวันที่ไทย
+   แตะตรงไหนก็โดน input ตรงๆ ปฏิทินจึงเด้งได้ทุกเครื่อง ไม่ต้องพึ่ง showPicker() */
+.dateslot{ position:relative; display:inline-block; }
+.dateslot .dpick{
+  position:absolute; left:0; top:0; width:100%; height:100%;
+  opacity:0; border:0; padding:0; margin:0; background:transparent;
+  font-size:16px;            /* กัน iOS ซูมหน้าจอตอนแตะ */
+  cursor:pointer; -webkit-appearance:none; appearance:none;
+}
+
 .line{ display:flex; align-items:baseline; gap:6px; margin-bottom:1mm; }
 .line.right{ justify-content:flex-end; }
 .lbl{ white-space:nowrap; }
@@ -432,8 +442,10 @@ body.mobile .mbanner{ display:block; }
 
         <div class="line right">
           <span class="lbl">วันที่</span>
-          <span id="dateText" class="dtxt" onclick="pickDate()" style="cursor:pointer;border-bottom:1px dashed var(--line);padding:0 6px"></span>
-          <input type="date" id="dateInput" class="no-print" style="width:0;height:0;opacity:0;border:0;padding:0" onchange="onDateChange()">
+          <span class="dateslot">
+            <span id="dateText" class="dtxt" style="border-bottom:1px dashed var(--line);padding:0 6px"></span>
+            <input type="date" id="dateInput" class="no-print dpick" onchange="onDateChange()" aria-label="เลือกวันที่">
+          </span>
         </div>
 
         <div class="line"><span class="lbl">เรียน</span><input class="f grow" id="f_to" placeholder=""></div>
@@ -776,11 +788,6 @@ function syncSigDates(){
   lastAutoDate = v;
 }
 
-function pickDate(){
-  const el = $('dateInput');
-  if(el.showPicker){ try{ el.showPicker(); return; }catch(e){} }
-  el.classList.remove('no-print'); el.style.opacity=1; el.style.width='40mm'; el.style.height='auto'; el.focus();
-}
 function onDateChange(){
   $('dateText').textContent = thaiDate($('dateInput').value);
   syncSigDates(); fitSigText();
@@ -1451,13 +1458,14 @@ function fitStage(){
   const pageW = 210 * (96/25.4);
   const avail = document.documentElement.clientWidth - 12;
   const k = Math.min(1, avail / pageW);
+  // กำหนดความกว้างกล่องนอกให้เท่ากระดาษเสมอ (margin:auto จึงจัดกึ่งกลางได้จริง)
+  wrap.style.width = (pageW * k) + 'px';
   if(k < 1){
     st.style.transformOrigin = 'top left';
     st.style.transform = `scale(${k})`;
-    wrap.style.width  = (pageW * k) + 'px';
     wrap.style.height = (st.offsetHeight * k) + 'px';
   } else {
-    st.style.transform = ''; wrap.style.width = ''; wrap.style.height = '';
+    st.style.transform = ''; wrap.style.height = '';
   }
 }
 
