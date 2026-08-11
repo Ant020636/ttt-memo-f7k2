@@ -234,7 +234,6 @@ body.measuring .no-print{ display:none !important; }
   border:1px solid #d97706; background:#fff; color:#92400e; border-radius:6px;
 }
 body.mobile .mbanner{ display:block; }
-body.mobile .btn-final{ display:none !important; }   /* ปุ่มที่ล็อกเลขเอกสาร ซ่อนบนมือถือ */
 
 @media (max-width:820px){
   .toolbar{ padding:6px 8px; gap:4px; }
@@ -409,9 +408,11 @@ body.mobile .btn-final{ display:none !important; }   /* ปุ่มที่ล
 </div>
 
 <div class="mbanner no-print" id="mBanner">
-  📱 <b>โหมดร่างบนมือถือ</b> — กรอกและ <b>บันทึกร่าง</b> ได้ แต่ยังไม่ออกเลขที่เอกสาร
-  ให้กลับไปเปิดร่างที่คอมพิวเตอร์แล้วค่อยออกเลข + พิมพ์ PDF
-  <span style="display:block;color:#a16207">(กันเลขที่เอกสารซ้ำ เพราะมือถือกับคอมนับเลขคนละชุด)</span>
+  📱 <b>กำลังใช้บนมือถือ</b> — เลขที่เอกสารจะลงท้ายด้วย <b>-M</b> เพื่อไม่ให้ชนกับเลขที่ออกจากคอม
+  <span style="display:block;color:#a16207">
+    <b>iPhone:</b> กดพิมพ์ → Share → Print → ถ่างนิ้วบนภาพตัวอย่าง → Share → Save to Files<br>
+    <b>Android:</b> กดพิมพ์ → เลือกปลายทาง "Save as PDF" → บันทึก
+  </span>
   <button onclick="forceDesktop()">ฉันใช้คอมอยู่ — เปลี่ยนเป็นโหมดเต็ม</button>
 </div>
 
@@ -947,17 +948,16 @@ function consumeSeq(emp, iso){
   const c = jget(LS.ctr,{}); const k = counterKey(emp,iso);
   c[k] = (c[k]||0) + 1; jset(LS.ctr,c); return c[k];
 }
+/* ต่อท้ายด้วย -M เมื่อออกเลขจากมือถือ
+   เพราะมือถือกับคอมนับเลขคนละชุด ทั้งคู่เริ่มที่ 01 ทุกวัน ถ้าไม่แยกจะได้เลขซ้ำกัน
+   (ทำวันละใบเดียวต่อเครื่องก็ชนได้ ไม่เกี่ยวกับจำนวนใบต่อวัน) */
 function buildDocNo(emp, iso, seq){
   const base = `${CFG.prefix}-${emp}-${iso}`;
-  return CFG.showSeq ? `${base}-${pad2(seq)}` : base;
+  const core = CFG.showSeq ? `${base}-${pad2(seq)}` : base;
+  return MOBILE ? `${core}-M` : core;
 }
 function refreshDocNo(){
   const s = getSetup(), iso = $('dateInput').value || isoToday();
-  if(MOBILE){   // โหมดร่าง: ไม่จองเลข ไม่เดินเลข
-    state.docno = '';
-    paintDocNo('— ออกเลขที่คอมพิวเตอร์ —','📱 โหมดร่าง','#fef3c7','#92400e');
-    return;
-  }
   if(!s.emp){ state.docno=''; paintDocNo('— ยังไม่ได้ตั้งรหัสพนักงาน —','ยังไม่ออกเลข','#fee2e2','#b91c1c'); return; }
   state.docno = buildDocNo(s.emp, iso, peekSeq(s.emp, iso));
   paintDocNo(state.docno, 'ร่าง — จะล็อกเลขเมื่อกดพิมพ์', '#fef3c7', '#92400e');
@@ -1186,9 +1186,14 @@ function registerRow(){
           d.to, d.subject, d.attach.filter(Boolean).join(' / '),
           d.n2, d.n3, pdfName()+'.pdf'];
 }
+/* 1 เลขที่เอกสาร = 1 แถวเสมอ
+   ถ้าพิมพ์ซ้ำด้วยเลขเดิมหลังแก้เนื้อหา จะเขียนทับแถวเดิมให้เป็นข้อมูลล่าสุด
+   (ไม่เพิ่มแถวซ้ำ และไม่ปล่อยให้แถวเดิมเป็นข้อมูลเก่าค้างไว้) */
 function addToRegister(){
   const reg = jget(LS.reg, []);
-  if(!reg.some(r=>r[0]===state.docno)) reg.push(registerRow());
+  const row = registerRow();
+  const i = reg.findIndex(r => r[0] === state.docno);
+  if(i >= 0) reg[i] = row; else reg.push(row);
   jset(LS.reg, reg);
 }
 const REG_HEAD = ['เลขที่เอกสาร','วันที่ (ค.ศ.)','วันที่ (ไทย)','รหัสพนักงาน','ผู้จัดทำ','แผนก',
@@ -1405,7 +1410,6 @@ function saveDraft(){
   const d = formData();
   const name = d.docno || ('MEMO-ร่าง-' + (sanitize($('f_subject').value).slice(0,40) || isoToday()));
   dl(new Blob([JSON.stringify(d,null,2)],{type:'application/json'}), name + '.json');
-  if(MOBILE) toast('บันทึกร่างแล้ว — เปิดไฟล์นี้ที่คอมเพื่อออกเลขและพิมพ์ PDF');
 }
 function openDraft(input){
   const f = input.files[0]; if(!f) return;
